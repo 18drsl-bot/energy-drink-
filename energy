@@ -1,0 +1,169 @@
+-- LocalScript (put in StarterPlayerScripts)
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- Create or reuse GUI (prevent duplicates). GUI persists across respawn so it doesn't disappear.
+local gui = playerGui:FindFirstChild("EnergyDrinkGUI")
+if not gui then
+    gui = Instance.new("ScreenGui")
+    gui.Name = "EnergyDrinkGUI"
+    gui.ResetOnSpawn = false
+    gui.Parent = playerGui
+end
+
+-- Main frame (create once)
+local mainFrame = gui:FindFirstChild("MainFrame")
+if not mainFrame then
+    mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Size = UDim2.new(0, 240, 0, 100)
+    mainFrame.Position = UDim2.new(0.05, 0, 0.2, 0)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Parent = gui
+end
+
+-- Toggle button
+local toggleButton = mainFrame:FindFirstChild("ToggleButton")
+if not toggleButton then
+    toggleButton = Instance.new("TextButton")
+    toggleButton.Name = "ToggleButton"
+    toggleButton.Size = UDim2.new(0, 160, 0, 56)
+    toggleButton.Position = UDim2.new(0, 10, 0, 10)
+    toggleButton.TextColor3 = Color3.new(1, 1, 1)
+    toggleButton.Font = Enum.Font.SourceSansBold
+    toggleButton.TextScaled = true
+    toggleButton.Parent = mainFrame
+end
+
+-- Key label
+local keyLabel = mainFrame:FindFirstChild("KeyLabel")
+if not keyLabel then
+    keyLabel = Instance.new("TextLabel")
+    keyLabel.Name = "KeyLabel"
+    keyLabel.Size = UDim2.new(0, 60, 0, 22)
+    keyLabel.Position = UDim2.new(0, 10, 0, 72)
+    keyLabel.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    keyLabel.TextColor3 = Color3.new(1, 1, 1)
+    keyLabel.TextScaled = true
+    keyLabel.Font = Enum.Font.SourceSans
+    keyLabel.Parent = mainFrame
+end
+
+-- Optional change-key button
+local changeKeyBtn = mainFrame:FindFirstChild("ChangeKeyBtn")
+if not changeKeyBtn then
+    changeKeyBtn = Instance.new("TextButton")
+    changeKeyBtn.Name = "ChangeKeyBtn"
+    changeKeyBtn.Size = UDim2.new(0, 120, 0, 22)
+    changeKeyBtn.Position = UDim2.new(0, 130, 0, 72)
+    changeKeyBtn.Text = "Change Key"
+    changeKeyBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+    changeKeyBtn.TextColor3 = Color3.new(1, 1, 1)
+    changeKeyBtn.TextScaled = true
+    changeKeyBtn.Font = Enum.Font.SourceSans
+    changeKeyBtn.Parent = mainFrame
+end
+
+-- Keybind state (default to V)
+local currentKey = Enum.KeyCode.V
+local listeningForKey = false
+
+-- Keep a reference to the Drinked BoolValue on the current character
+local drinkedBoolean
+
+-- Helper: ensure Drinked exists on the character (follows your original pattern)
+local function ensureDrinkedOnCharacter(char)
+    if not char then return end
+    local dv = char:FindFirstChild("Drinked")
+    if not dv then
+        dv = Instance.new("BoolValue")
+        dv.Name = "Drinked"
+        dv.Value = true -- default to true as in your original script
+        dv.Parent = char
+    end
+    return dv
+end
+
+-- Update button visuals
+local function updateButtonVisual()
+    if drinkedBoolean and drinkedBoolean.Value then
+        toggleButton.Text = "Energy Drink: ON"
+        toggleButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+    else
+        toggleButton.Text = "Energy Drink: OFF"
+        toggleButton.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+    end
+    keyLabel.Text = "Key: " .. currentKey.Name
+end
+
+-- Toggle function
+local function toggleDrink()
+    if drinkedBoolean then
+        drinkedBoolean.Value = not drinkedBoolean.Value
+        updateButtonVisual()
+    end
+end
+
+-- Bind GUI to a character's Drinked BoolValue
+local function bindToCharacter(char)
+    -- Disconnect previous Changed connection if any by reassigning
+    drinkedBoolean = ensureDrinkedOnCharacter(char)
+    -- Make sure it's set to true initially like your original code
+    if drinkedBoolean.Value == nil then
+        drinkedBoolean.Value = true
+    end
+    updateButtonVisual()
+    -- Keep UI updated if value changes elsewhere
+    drinkedBoolean.Changed:Connect(updateButtonVisual)
+end
+
+-- Initial bind if character already exists
+if player.Character then
+    bindToCharacter(player.Character)
+end
+
+-- Re-bind when character respawns (keeps Drinked on character, recreates if missing)
+player.CharacterAdded:Connect(function(char)
+    -- small delay to allow character children to be created
+    char:WaitForChild("Humanoid", 5) -- optional wait to let character initialize
+    bindToCharacter(char)
+end)
+
+-- Button click toggles drink
+toggleButton.MouseButton1Click:Connect(toggleDrink)
+
+-- Change key flow
+changeKeyBtn.MouseButton1Click:Connect(function()
+    if listeningForKey then return end
+    listeningForKey = true
+    changeKeyBtn.Text = "Press a key..."
+    keyLabel.Text = "Key: ..."
+end)
+
+-- Listen for key presses
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+
+    -- If changing keybind, capture it
+    if listeningForKey and input.UserInputType == Enum.UserInputType.Keyboard then
+        if input.KeyCode ~= Enum.KeyCode.Unknown then
+            currentKey = input.KeyCode
+            listeningForKey = false
+            changeKeyBtn.Text = "Change Key"
+            updateButtonVisual()
+        end
+        return
+    end
+
+    -- Normal toggle by keybind
+    if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == currentKey then
+        toggleDrink()
+    end
+end)
+
+-- Initialize visuals (in case Drinked wasn't ready yet)
+updateButtonVisual()
