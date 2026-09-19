@@ -75,14 +75,14 @@ local listeningForKey = false
 -- Keep a reference to the Drinked BoolValue on the current character
 local drinkedBoolean
 
--- Helper: ensure Drinked exists on the character (follows your original pattern)
+-- Helper: ensure Drinked exists on the character
 local function ensureDrinkedOnCharacter(char)
     if not char then return end
     local dv = char:FindFirstChild("Drinked")
     if not dv then
         dv = Instance.new("BoolValue")
         dv.Name = "Drinked"
-        dv.Value = true -- default to true as in your original script
+        dv.Value = true
         dv.Parent = char
     end
     return dv
@@ -108,28 +108,23 @@ local function toggleDrink()
     end
 end
 
--- Bind GUI to a character's Drinked BoolValue
+-- Bind GUI to character
 local function bindToCharacter(char)
-    -- Disconnect previous Changed connection if any by reassigning
     drinkedBoolean = ensureDrinkedOnCharacter(char)
-    -- Make sure it's set to true initially like your original code
     if drinkedBoolean.Value == nil then
         drinkedBoolean.Value = true
     end
     updateButtonVisual()
-    -- Keep UI updated if value changes elsewhere
     drinkedBoolean.Changed:Connect(updateButtonVisual)
 end
 
--- Initial bind if character already exists
+-- Initial bind
 if player.Character then
     bindToCharacter(player.Character)
 end
 
--- Re-bind when character respawns (keeps Drinked on character, recreates if missing)
 player.CharacterAdded:Connect(function(char)
-    -- small delay to allow character children to be created
-    char:WaitForChild("Humanoid", 5) -- optional wait to let character initialize
+    char:WaitForChild("Humanoid", 5)
     bindToCharacter(char)
 end)
 
@@ -148,7 +143,6 @@ end)
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
 
-    -- If changing keybind, capture it
     if listeningForKey and input.UserInputType == Enum.UserInputType.Keyboard then
         if input.KeyCode ~= Enum.KeyCode.Unknown then
             currentKey = input.KeyCode
@@ -159,11 +153,43 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         return
     end
 
-    -- Normal toggle by keybind
     if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == currentKey then
         toggleDrink()
     end
 end)
 
--- Initialize visuals (in case Drinked wasn't ready yet)
+-- Initialize visuals
 updateButtonVisual()
+
+---------------------------------------------------------------------
+-- 🟦 MAKE GUI DRAGGABLE
+---------------------------------------------------------------------
+local dragging = false
+local dragStart
+local startPos
+
+mainFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+    end
+end)
+
+mainFrame.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+    end
+end)
