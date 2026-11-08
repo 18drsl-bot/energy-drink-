@@ -1,95 +1,161 @@
 
--- ENERGY DRINK GUI
--- LocalScript in StarterPlayerScripts
+-- ENERGY DRINK GUI - RELIABLE VERSION
+-- Place in StarterPlayer > StarterPlayerScripts
+-- Uses the ORIGINAL Drinked BoolValue method
 
 local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
+local UIS = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
--- Create or reuse GUI
-local gui = playerGui:FindFirstChild("EnergyDrinkGUI")
+--------------------------------------------------
+-- PREVENT DUPLICATE SCRIPT CONTROLLERS
+--------------------------------------------------
 
-if not gui then
-    gui = Instance.new("ScreenGui")
-    gui.Name = "EnergyDrinkGUI"
-    gui.ResetOnSpawn = false
-    gui.Parent = playerGui
+local controllerName = "EnergyDrinkController"
+
+local oldController = playerGui:FindFirstChild(controllerName)
+
+if oldController then
+    -- An existing copy is already running.
+    -- Avoid adding duplicate input listeners.
+    return
 end
 
--- Remove old frame to refresh the design
-local oldFrame = gui:FindFirstChild("MainFrame")
-if oldFrame then
-    oldFrame:Destroy()
-end
+local controller = Instance.new("Folder")
+controller.Name = controllerName
+controller.Parent = playerGui
 
---------------------------------------------
--- UI HELPERS
---------------------------------------------
+-- Clean up controller if this script is destroyed
+script.Destroying:Connect(function()
+    if controller.Parent then
+        controller:Destroy()
+    end
+end)
 
-local function round(obj, radius)
+--------------------------------------------------
+-- SETTINGS
+--------------------------------------------------
+
+local currentKey = Enum.KeyCode.V
+local listeningForKey = false
+local drinkedBoolean = nil
+local drinkConnection = nil
+local minimized = false
+
+local WIDTH = 290
+local FULL_HEIGHT = 218
+local HEADER_HEIGHT = 56
+
+local COLORS = {
+    Background = Color3.fromRGB(21, 25, 31),
+    Section = Color3.fromRGB(34, 40, 50),
+    Button = Color3.fromRGB(47, 55, 66),
+    Border = Color3.fromRGB(55, 63, 73),
+    White = Color3.fromRGB(245, 247, 250),
+    Muted = Color3.fromRGB(157, 166, 177),
+    Green = Color3.fromRGB(0, 170, 0),
+    Red = Color3.fromRGB(170, 0, 0),
+}
+
+--------------------------------------------------
+-- HELPERS
+--------------------------------------------------
+
+local function addCorner(object, radius)
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, radius)
-    corner.Parent = obj
+    corner.Parent = object
+    return corner
 end
 
-local function animate(obj, props)
+local function animate(object, properties)
+    if not object or not object.Parent then
+        return
+    end
+
     TweenService:Create(
-        obj,
-        TweenInfo.new(0.2, Enum.EasingStyle.Quad),
-        props
+        object,
+        TweenInfo.new(
+            0.2,
+            Enum.EasingStyle.Quad,
+            Enum.EasingDirection.Out
+        ),
+        properties
     ):Play()
 end
 
-local function label(parent, name, text, x, y, w, h, size)
-    local obj = Instance.new("TextLabel")
-    obj.Name = name
-    obj.BackgroundTransparency = 1
-    obj.Position = UDim2.fromOffset(x, y)
-    obj.Size = UDim2.fromOffset(w, h)
-    obj.Text = text
-    obj.TextSize = size
-    obj.Font = Enum.Font.Gotham
-    obj.TextColor3 = Color3.fromRGB(240, 243, 247)
-    obj.TextXAlignment = Enum.TextXAlignment.Left
-    obj.Parent = parent
-    return obj
+local function makeLabel(
+    parent, name, text,
+    x, y, width, height, textSize
+)
+    local label = Instance.new("TextLabel")
+    label.Name = name
+    label.BackgroundTransparency = 1
+    label.Position = UDim2.fromOffset(x, y)
+    label.Size = UDim2.fromOffset(width, height)
+    label.Text = text
+    label.TextSize = textSize
+    label.Font = Enum.Font.Gotham
+    label.TextColor3 = COLORS.White
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.TextYAlignment = Enum.TextYAlignment.Center
+    label.Parent = parent
+    return label
 end
 
---------------------------------------------
+--------------------------------------------------
+-- CREATE GUI
+--------------------------------------------------
+
+local oldGui = playerGui:FindFirstChild("EnergyDrinkGUI")
+
+if oldGui then
+    oldGui:Destroy()
+end
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "EnergyDrinkGUI"
+gui.ResetOnSpawn = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.Parent = playerGui
+
+--------------------------------------------------
 -- MAIN FRAME
---------------------------------------------
+--------------------------------------------------
 
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
-mainFrame.Size = UDim2.fromOffset(290, 218)
+mainFrame.Size = UDim2.fromOffset(WIDTH, FULL_HEIGHT)
 mainFrame.Position = UDim2.new(0.05, 0, 0.2, 0)
-mainFrame.BackgroundColor3 = Color3.fromRGB(21, 25, 31)
+mainFrame.BackgroundColor3 = COLORS.Background
 mainFrame.BorderSizePixel = 0
 mainFrame.ClipsDescendants = true
 mainFrame.Active = true
 mainFrame.Parent = gui
-round(mainFrame, 14)
+
+addCorner(mainFrame, 14)
 
 local border = Instance.new("UIStroke")
-border.Color = Color3.fromRGB(55, 63, 73)
+border.Color = COLORS.Border
 border.Transparency = 0.3
+border.Thickness = 1
 border.Parent = mainFrame
 
---------------------------------------------
+--------------------------------------------------
 -- HEADER
---------------------------------------------
+--------------------------------------------------
 
 local header = Instance.new("Frame")
 header.Name = "Header"
-header.Size = UDim2.new(1, 0, 0, 56)
+header.Size = UDim2.new(1, 0, 0, HEADER_HEIGHT)
 header.BackgroundTransparency = 1
 header.Active = true
 header.Parent = mainFrame
 
--- Icon background
+-- Cup icon background
 local iconBox = Instance.new("Frame")
 iconBox.Name = "EnergyIconBackground"
 iconBox.Size = UDim2.fromOffset(36, 36)
@@ -97,165 +163,191 @@ iconBox.Position = UDim2.fromOffset(12, 10)
 iconBox.BackgroundColor3 = Color3.fromRGB(25, 65, 47)
 iconBox.BorderSizePixel = 0
 iconBox.Parent = header
-round(iconBox, 9)
 
--- Cup emoji
-local icon = Instance.new("TextLabel")
-icon.Name = "EnergyIcon"
-icon.Size = UDim2.fromOffset(36, 36)
-icon.BackgroundTransparency = 1
-icon.Text = "🥤"
-icon.TextSize = 24
-icon.Font = Enum.Font.GothamBold
-icon.TextXAlignment = Enum.TextXAlignment.Center
-icon.TextYAlignment = Enum.TextYAlignment.Center
-icon.Parent = iconBox
+addCorner(iconBox, 9)
+
+-- Drinking cup emoji
+local cupIcon = Instance.new("TextLabel")
+cupIcon.Name = "EnergyIcon"
+cupIcon.Size = UDim2.fromScale(1, 1)
+cupIcon.BackgroundTransparency = 1
+cupIcon.Text = "🥤"
+cupIcon.TextSize = 24
+cupIcon.Font = Enum.Font.GothamBold
+cupIcon.TextColor3 = COLORS.White
+cupIcon.TextXAlignment = Enum.TextXAlignment.Center
+cupIcon.TextYAlignment = Enum.TextYAlignment.Center
+cupIcon.Parent = iconBox
 
 -- Title
-local title = label(
+local title = makeLabel(
     header, "Title", "Energy Drink",
-    58, 10, 170, 23, 16
+    58, 10, 175, 23, 16
 )
 title.Font = Enum.Font.GothamBold
 
-local subtitle = label(
-    header, "Subtitle", "TWR Energy",
+local subtitle = makeLabel(
+    header, "Subtitle", "CONTROL PANEL",
     59, 33, 165, 15, 10
 )
-subtitle.TextColor3 = Color3.fromRGB(135, 145, 157)
+subtitle.TextColor3 = COLORS.Muted
 
--- Minimize button
+--------------------------------------------------
+-- MINIMIZE BUTTON
+--------------------------------------------------
+
 local minimizeButton = Instance.new("TextButton")
 minimizeButton.Name = "MinimizeButton"
 minimizeButton.Size = UDim2.fromOffset(30, 30)
 minimizeButton.Position = UDim2.new(1, -39, 0, 13)
-minimizeButton.BackgroundColor3 = Color3.fromRGB(43, 50, 60)
+minimizeButton.BackgroundColor3 = COLORS.Button
 minimizeButton.Text = "-"
 minimizeButton.TextSize = 22
 minimizeButton.Font = Enum.Font.GothamBold
-minimizeButton.TextColor3 = Color3.new(1, 1, 1)
+minimizeButton.TextColor3 = COLORS.White
+minimizeButton.AutoButtonColor = true
 minimizeButton.ZIndex = 5
 minimizeButton.Parent = header
-round(minimizeButton, 8)
 
---------------------------------------------
+addCorner(minimizeButton, 8)
+
+--------------------------------------------------
 -- CONTENT
---------------------------------------------
+--------------------------------------------------
 
 local content = Instance.new("Frame")
 content.Name = "Content"
 content.Size = UDim2.new(1, 0, 0, 162)
-content.Position = UDim2.fromOffset(0, 56)
+content.Position = UDim2.fromOffset(0, HEADER_HEIGHT)
 content.BackgroundTransparency = 1
 content.Parent = mainFrame
 
 local divider = Instance.new("Frame")
 divider.Size = UDim2.new(1, -26, 0, 1)
 divider.Position = UDim2.fromOffset(13, 2)
-divider.BackgroundColor3 = Color3.fromRGB(49, 55, 64)
+divider.BackgroundColor3 = COLORS.Border
 divider.BorderSizePixel = 0
 divider.Parent = content
 
--- Energy Boost section
+--------------------------------------------------
+-- ENERGY BOOST SECTION
+--------------------------------------------------
+
 local section = Instance.new("Frame")
+section.Name = "BoostSection"
 section.Size = UDim2.new(1, -26, 0, 65)
 section.Position = UDim2.fromOffset(13, 14)
-section.BackgroundColor3 = Color3.fromRGB(34, 40, 50)
+section.BackgroundColor3 = COLORS.Section
 section.BorderSizePixel = 0
 section.Parent = content
-round(section, 10)
 
-local boostTitle = label(
+addCorner(section, 10)
+
+local boostTitle = makeLabel(
     section, "BoostTitle", "Energy Boost",
     12, 10, 160, 22, 14
 )
 boostTitle.Font = Enum.Font.GothamBold
 
-local boostDesc = label(
-    section, "BoostDesc", "Toggle drink effect",
+local boostDesc = makeLabel(
+    section, "BoostDescription",
+    "Toggle drink effect",
     12, 34, 165, 20, 11
 )
-boostDesc.TextColor3 = Color3.fromRGB(157, 166, 177)
+boostDesc.TextColor3 = COLORS.Muted
 
--- Toggle button
+-- Toggle background
 local toggleButton = Instance.new("TextButton")
 toggleButton.Name = "ToggleButton"
 toggleButton.Size = UDim2.fromOffset(52, 28)
 toggleButton.Position = UDim2.new(1, -65, 0.5, -14)
-toggleButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+toggleButton.BackgroundColor3 = COLORS.Green
 toggleButton.Text = ""
 toggleButton.AutoButtonColor = false
 toggleButton.Parent = section
-round(toggleButton, 20)
 
+addCorner(toggleButton, 20)
+
+-- Toggle knob
 local knob = Instance.new("Frame")
+knob.Name = "Knob"
 knob.Size = UDim2.fromOffset(20, 20)
 knob.Position = UDim2.fromOffset(28, 4)
 knob.BackgroundColor3 = Color3.new(1, 1, 1)
 knob.BorderSizePixel = 0
 knob.Parent = toggleButton
-round(knob, 20)
 
--- Keybind section
-local keyTitle = label(
+addCorner(knob, 20)
+
+--------------------------------------------------
+-- KEYBIND SECTION
+--------------------------------------------------
+
+local keyTitle = makeLabel(
     content, "KeyTitle", "Toggle Key",
     15, 90, 130, 20, 13
 )
 keyTitle.Font = Enum.Font.GothamBold
 
-local keyDesc = label(
-    content, "KeyDesc", "Keyboard shortcut",
+local keyDescription = makeLabel(
+    content, "KeyDescription",
+    "Keyboard shortcut",
     15, 109, 145, 18, 11
 )
-keyDesc.TextColor3 = Color3.fromRGB(157, 166, 177)
+keyDescription.TextColor3 = COLORS.Muted
 
 local changeKeyBtn = Instance.new("TextButton")
 changeKeyBtn.Name = "ChangeKeyBtn"
 changeKeyBtn.Size = UDim2.fromOffset(92, 32)
 changeKeyBtn.Position = UDim2.new(1, -105, 0, 93)
-changeKeyBtn.BackgroundColor3 = Color3.fromRGB(47, 55, 66)
-changeKeyBtn.Text = "V"
+changeKeyBtn.BackgroundColor3 = COLORS.Button
+changeKeyBtn.Text = currentKey.Name
 changeKeyBtn.TextSize = 13
 changeKeyBtn.Font = Enum.Font.GothamBold
-changeKeyBtn.TextColor3 = Color3.new(1, 1, 1)
+changeKeyBtn.TextColor3 = COLORS.White
+changeKeyBtn.AutoButtonColor = true
 changeKeyBtn.Parent = content
-round(changeKeyBtn, 7)
 
--- Footer
+addCorner(changeKeyBtn, 7)
+
+--------------------------------------------------
+-- FOOTER
+--------------------------------------------------
+
 local footerLine = Instance.new("Frame")
 footerLine.Size = UDim2.new(1, -26, 0, 1)
 footerLine.Position = UDim2.fromOffset(13, 135)
-footerLine.BackgroundColor3 = Color3.fromRGB(49, 55, 64)
+footerLine.BackgroundColor3 = COLORS.Border
 footerLine.BorderSizePixel = 0
 footerLine.Parent = content
 
 local statusDot = Instance.new("Frame")
+statusDot.Name = "StatusDot"
 statusDot.Size = UDim2.fromOffset(7, 7)
 statusDot.Position = UDim2.fromOffset(15, 146)
 statusDot.BorderSizePixel = 0
 statusDot.Parent = content
-round(statusDot, 10)
 
-local statusText = label(
-    content, "Status", "Currently enabled",
+addCorner(statusDot, 10)
+
+local statusText = makeLabel(
+    content, "StatusText",
+    "Currently enabled",
     29, 141, 180, 18, 11
 )
-statusText.TextColor3 = Color3.fromRGB(160, 170, 180)
+statusText.TextColor3 = COLORS.Muted
 
---------------------------------------------
--- ORIGINAL ENERGY DRINK METHOD
---------------------------------------------
+--------------------------------------------------
+-- ORIGINAL ENERGY DRINK SYSTEM
+--------------------------------------------------
 
--- Keybind state (default to V)
-local currentKey = Enum.KeyCode.V
-local listeningForKey = false
+-- This is the same method as your first script:
+-- Character.Drinked.Value = true/false
 
--- Keep a reference to Drinked BoolValue
-local drinkedBoolean
-
--- Ensure Drinked exists on character
 local function ensureDrinkedOnCharacter(char)
-    if not char then return end
+    if not char then
+        return nil
+    end
 
     local dv = char:FindFirstChild("Drinked")
 
@@ -269,94 +361,147 @@ local function ensureDrinkedOnCharacter(char)
     return dv
 end
 
--- Update button visuals
+--------------------------------------------------
+-- UPDATE VISUALS
+--------------------------------------------------
+
 local function updateButtonVisual()
-    if drinkedBoolean and drinkedBoolean.Value then
-        animate(toggleButton, {
-            BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-        })
+    local enabled = false
 
-        animate(knob, {
-            Position = UDim2.fromOffset(28, 4)
-        })
-
-        statusDot.BackgroundColor3 =
-            Color3.fromRGB(55, 225, 139)
-
-        statusText.Text = "Currently enabled"
-    else
-        animate(toggleButton, {
-            BackgroundColor3 = Color3.fromRGB(170, 0, 0)
-        })
-
-        animate(knob, {
-            Position = UDim2.fromOffset(4, 4)
-        })
-
-        statusDot.BackgroundColor3 =
-            Color3.fromRGB(170, 0, 0)
-
-        statusText.Text = "Currently disabled"
+    if drinkedBoolean
+        and drinkedBoolean.Parent
+        and drinkedBoolean.Value then
+        enabled = true
     end
 
-    changeKeyBtn.Text = currentKey.Name
+    animate(toggleButton, {
+        BackgroundColor3 = enabled
+            and COLORS.Green
+            or COLORS.Red
+    })
+
+    animate(knob, {
+        Position = enabled
+            and UDim2.fromOffset(28, 4)
+            or UDim2.fromOffset(4, 4)
+    })
+
+    statusDot.BackgroundColor3 = enabled
+        and Color3.fromRGB(55, 225, 139)
+        or COLORS.Red
+
+    statusText.Text = enabled
+        and "Currently enabled"
+        or "Currently disabled"
 end
 
--- Original toggle function
+--------------------------------------------------
+-- ORIGINAL TOGGLE METHOD
+--------------------------------------------------
+
 local function toggleDrink()
-    if drinkedBoolean then
-        drinkedBoolean.Value = not drinkedBoolean.Value
-        updateButtonVisual()
+    if not drinkedBoolean then
+        return
     end
-end
 
--- Bind GUI to character
-local function bindToCharacter(char)
-    drinkedBoolean = ensureDrinkedOnCharacter(char)
-
-    if drinkedBoolean.Value == nil then
-        drinkedBoolean.Value = true
+    if not drinkedBoolean.Parent then
+        return
     end
+
+    -- Exact original behavior
+    drinkedBoolean.Value = not drinkedBoolean.Value
 
     updateButtonVisual()
-    drinkedBoolean.Changed:Connect(updateButtonVisual)
 end
 
--- Initial bind
+--------------------------------------------------
+-- CHARACTER BINDING
+--------------------------------------------------
+
+local function bindToCharacter(char)
+    if drinkConnection then
+        drinkConnection:Disconnect()
+        drinkConnection = nil
+    end
+
+    drinkedBoolean = nil
+
+    if not char then
+        updateButtonVisual()
+        return
+    end
+
+    -- Original method
+    drinkedBoolean = ensureDrinkedOnCharacter(char)
+
+    if drinkedBoolean then
+        updateButtonVisual()
+
+        drinkConnection = drinkedBoolean.Changed:Connect(
+            updateButtonVisual
+        )
+    end
+end
+
+-- Character may already exist
 if player.Character then
     bindToCharacter(player.Character)
 end
 
+-- Rebind on respawn
 player.CharacterAdded:Connect(function(char)
     char:WaitForChild("Humanoid", 5)
     bindToCharacter(char)
 end)
 
--- Button click toggles drink
-toggleButton.MouseButton1Click:Connect(toggleDrink)
+--------------------------------------------------
+-- TOGGLE BUTTON
+--------------------------------------------------
 
--- Change key flow
-changeKeyBtn.MouseButton1Click:Connect(function()
-    if listeningForKey then return end
-
-    listeningForKey = true
-    changeKeyBtn.Text = "Press a key..."
+toggleButton.MouseButton1Click:Connect(function()
+    toggleDrink()
 end)
 
--- Listen for key presses
+--------------------------------------------------
+-- CHANGE KEYBIND
+--------------------------------------------------
+
+changeKeyBtn.MouseButton1Click:Connect(function()
+    if listeningForKey then
+        return
+    end
+
+    listeningForKey = true
+    changeKeyBtn.Text = "Press key..."
+    changeKeyBtn.TextSize = 11
+end)
+
+--------------------------------------------------
+-- KEYBOARD INPUT
+--------------------------------------------------
+
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
+    -- Handle rebinding first
+    if listeningForKey then
+        if input.UserInputType == Enum.UserInputType.Keyboard
+            and input.KeyCode ~= Enum.KeyCode.Unknown then
 
-    if listeningForKey
-        and input.UserInputType == Enum.UserInputType.Keyboard then
-
-        if input.KeyCode ~= Enum.KeyCode.Unknown then
             currentKey = input.KeyCode
             listeningForKey = false
-            changeKeyBtn.Text = "Change Key"
-            updateButtonVisual()
+
+            changeKeyBtn.Text = currentKey.Name
+            changeKeyBtn.TextSize = 13
         end
 
+        return
+    end
+
+    -- Ignore typing in text boxes and processed inputs
+    if gameProcessed then
+        return
+    end
+
+    if UserInputService:GetFocusedTextBox() then
         return
     end
 
@@ -367,14 +512,9 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
--- Initialize visuals
-updateButtonVisual()
-
---------------------------------------------
+--------------------------------------------------
 -- MINIMIZE / RESTORE
---------------------------------------------
-
-local minimized = false
+--------------------------------------------------
 
 minimizeButton.MouseButton1Click:Connect(function()
     minimized = not minimized
@@ -384,27 +524,27 @@ minimizeButton.MouseButton1Click:Connect(function()
         minimizeButton.Text = "+"
 
         animate(mainFrame, {
-            Size = UDim2.fromOffset(290, 56)
+            Size = UDim2.fromOffset(WIDTH, HEADER_HEIGHT)
         })
     else
         minimizeButton.Text = "-"
 
         animate(mainFrame, {
-            Size = UDim2.fromOffset(290, 218)
+            Size = UDim2.fromOffset(WIDTH, FULL_HEIGHT)
         })
 
         content.Visible = true
     end
 end)
 
---------------------------------------------
--- DRAGGABLE GUI
---------------------------------------------
+--------------------------------------------------
+-- DRAGGABLE WINDOW
+--------------------------------------------------
 
 local dragging = false
-local dragStart
-local startPos
-local dragInput
+local dragStart = nil
+local startPos = nil
+local dragInput = nil
 
 header.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1
@@ -414,33 +554,46 @@ header.InputBegan:Connect(function(input)
         dragStart = input.Position
         startPos = mainFrame.Position
 
+        if input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+
         input.Changed:Connect(function()
             if input.UserInputState == Enum.UserInputState.End then
                 dragging = false
+                dragInput = nil
             end
         end)
     end
 end)
 
 header.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement
-        or input.UserInputType == Enum.UserInputType.Touch then
-
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
         dragInput = input
     end
 end)
 
 UserInputService.InputChanged:Connect(function(input)
-    if dragging and input == dragInput then
-        local delta = input.Position - dragStart
-
-        mainFrame.Position = UDim2.new(
-            startPos.X.Scale,
-            startPos.X.Offset + delta.X,
-            startPos.Y.Scale,
-            startPos.Y.Offset + delta.Y
-        )
+    if not dragging then
+        return
     end
+
+    if input ~= dragInput then
+        return
+    end
+
+    if not dragStart or not startPos then
+        return
+    end
+
+    local delta = input.Position - dragStart
+
+    mainFrame.Position = UDim2.new(
+        startPos.X.Scale,
+        startPos.X.Offset + delta.X,
+        startPos.Y.Scale,
+        startPos.Y.Offset + delta.Y
+    )
 end)
 
 UserInputService.InputEnded:Connect(function(input)
@@ -448,5 +601,12 @@ UserInputService.InputEnded:Connect(function(input)
         or input.UserInputType == Enum.UserInputType.Touch then
 
         dragging = false
+        dragInput = nil
     end
 end)
+
+--------------------------------------------------
+-- INITIALIZE
+--------------------------------------------------
+
+updateButtonVisual()
